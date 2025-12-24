@@ -468,10 +468,113 @@
         starLight.position.copy(star.position);
         scene.add(starLight);
 
-        // 移动版不使用手势识别，直接启用触控
-        loadingEl.style.opacity = 0;
-        camStatus.style.backgroundColor = "#33ff33";
-        camStatus.classList.add('active');
+        /**
+         * MEDIAPIPE LOGIC
+         */
+        let handLandmarker = undefined;
+        let lastVideoTime = -1;
+        let visionRunning = false;
+
+        async function initVision() {
+            try {
+                const vision = await FilesetResolver.forVisionTasks(
+                    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
+                );
+                
+                handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                    baseOptions: {
+                        modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+                        delegate: "GPU"
+                    },
+                    runningMode: "VIDEO",
+                    numHands: 1
+                });
+                startWebcam();
+            } catch (e) {
+                console.warn("AI Init Failed:", e);
+                loadingEl.style.opacity = 0;
+                showToast("AI模型加载失败，已切换至触控模式");
+            }
+        }
+
+        function startWebcam() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                fallbackToTouch("浏览器不支持摄像头 API");
+                return;
+            }
+            navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }).then((stream) => {
+                video.srcObject = stream;
+                video.addEventListener("loadeddata", () => {
+                    visionRunning = true;
+                    loadingEl.style.opacity = 0;
+                    camStatus.classList.add('active'); 
+                    controlModeEl.innerText = "手势识别中";
+                    instructionEl.innerHTML = "👆 食指偏移：陀螺旋转 | 👌 捏合：缩放";
+                    predictWebcam();
+                });
+            }).catch((err) => {
+                fallbackToTouch("摄像头权限被拒绝或需要HTTPS");
+            });
+        }
+
+        function fallbackToTouch(reason) {
+            loadingEl.style.opacity = 0;
+            camStatus.style.backgroundColor = "#ffaa00"; 
+            controlModeEl.innerText = "触控模式";
+            instructionEl.innerHTML = "👆 滑动旋转 | 🤏 双指缩放 | 👇 点击切换风格";
+            showToast("⚠️ " + reason + " -> 已启用触控模式");
+        }
+
+        async function predictWebcam() {
+            if (video.currentTime !== lastVideoTime) {
+                lastVideoTime = video.currentTime;
+                if (handLandmarker) {
+                    try {
+                        const result = handLandmarker.detectForVideo(video, performance.now());
+                        if (result.landmarks && result.landmarks.length > 0) {
+                            state.hasHand = true;
+                            
+                            // 1. Velocity Control (Index Finger Tip: 8)
+                            const tip = result.landmarks[0][8]; 
+                            gsap.to(state.mouse, {
+                                x: (1.0 - tip.x) * 2 - 1, 
+                                y: 0, 
+                                duration: 0.2, 
+                                overwrite: "auto"
+                            });
+
+                            // 2. Zoom (Pinch: Thumb 4 - Index 8)
+                            const thumb = result.landmarks[0][4];
+                            const index = result.landmarks[0][8];
+                            const dist = Math.hypot(thumb.x - index.x, thumb.y - index.y);
+
+                            const minPinch = 0.03;
+                            const maxPinch = 0.25;
+                            let normDist = (dist - minPinch) / (maxPinch - minPinch);
+                            normDist = Math.max(0, Math.min(1, normDist));
+
+                            const targetZ = config.maxCamZ - (normDist * (config.maxCamZ - config.minCamZ));
+
+                            gsap.to(camera.position, {
+                                z: targetZ,
+                                duration: 0.8,
+                                ease: "power2.out"
+                            });
+
+                        } else {
+                            if(state.hasHand) {
+                                state.hasHand = false;
+                                gsap.to(state.mouse, { x: 0, y: 0, duration: 1.0 });
+                                gsap.to(camera.position, { z: config.defaultCamZ, duration: 1.5 });
+                            }
+                        }
+                    } catch(e) {}
+                }
+            }
+            if(visionRunning) requestAnimationFrame(predictWebcam);
+        }
+
+        initVision();
 
 
         // 触摸控制
@@ -494,7 +597,7 @@
         }, { passive: false });
 
         window.addEventListener('touchmove', (e) => {
-            if (isTouching) {
+            if (!state.hasHand && isTouching) {
                 if (e.touches.length === 1) {
                     // 单指滑动控制旋转
                     const touchX = e.touches[0].clientX;
