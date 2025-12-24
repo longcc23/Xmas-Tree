@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D 粒子圣诞树 - 选择版本</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+        }
+        h1 {
+            text-align: center;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+        }
+        .subtitle {
+            text-align: center;
+            color: #aaa;
+            margin-bottom: 3rem;
+            font-size: 1rem;
+        }
+        .version-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+        .version-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 215, 0, 0.3);
+            border-radius: 15px;
+            padding: 2rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            text-decoration: none;
+            color: white;
+            display: block;
+        }
+        .version-card:hover {
+            transform: translateY(-5px);
+            border-color: rgba(255, 215, 0, 0.8);
+            box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+            background: rgba(255, 255, 255, 0.08);
+        }
+        .version-icon {
+            font-size: 3rem;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        .version-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 1rem;
+            color: #FFD700;
+        }
+        .version-features {
+            list-style: none;
+            margin-bottom: 1rem;
+        }
+        .version-features li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.9rem;
+            color: #ccc;
+        }
+        .version-features li:last-child {
+            border-bottom: none;
+        }
+        .version-features li::before {
+            content: "✨ ";
+            color: #FFD700;
+        }
+        .btn {
+            display: block;
+            text-align: center;
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            color: #000;
+            padding: 0.8rem 1.5rem;
+            border-radius: 25px;
+            font-weight: bold;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            margin-top: 1rem;
+        }
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(255, 215, 0, 0.5);
+        }
+        .footer {
+            text-align: center;
+            margin-top: 3rem;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+            .version-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎄 3D 粒子圣诞树 🎄</h1>
+        <p class="subtitle">Merry Christmas! 选择适合你的版本</p>
+        
+        <div class="version-grid">
+            <!-- 桌面版 -->
+            <a href="xmas-tree-desktop.html" class="version-card">
+                <div class="version-icon">💻</div>
+                <div class="version-title">桌面版</div>
+                <ul class="version-features">
+                    <li>5000 粒子高清渲染</li>
+                    <li>完整抗锯齿效果</li>
+                    <li>手势识别控制</li>
+                    <li>鼠标拖动旋转</li>
+                    <li>滚轮缩放视角</li>
+                    <li>空格键切换风格</li>
+                    <li>高性能光效渲染</li>
+                </ul>
+                <span class="btn">进入桌面版 →</span>
+            </a>
+            
+            <!-- 移动版 -->
+            <a href="xmas-tree-mobile.html" class="version-card">
+                <div class="version-icon">📱</div>
+                <div class="version-title">移动版</div>
+                <ul class="version-features">
+                    <li>2000 粒子轻量优化</li>
+                    <li>触控手势控制</li>
+                    <li>单指滑动旋转</li>
+                    <li>双指捏合缩放</li>
+                    <li>点击切换风格</li>
+                    <li>省电模式渲染</li>
+                    <li>流畅运行保证</li>
+                </ul>
+                <span class="btn">进入移动版 →</span>
+            </a>
+        </div>
+        
+        <div class="footer">
+            <p>🎅 Powered by Three.js & WebGL</p>
+            <p style="margin-top: 0.5rem;">三种风格：流金光辉 | 冰雪梦境 | 魔法森林</p>
+        </div>
+    </div>
+    
+    <script>
+        // 自动检测设备并跳转（可选）
+        const autoRedirect = false; // 设置为 true 启用自动跳转
+        
+        if (autoRedirect) {
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            if (isMobile) {
+                window.location.href = 'xmas-tree-mobile.html';
+            } else {
+                window.location.href = 'xmas-tree-desktop.html';
+            }
+        }
+    </script>
+</body>
+</html>
