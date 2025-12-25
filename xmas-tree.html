@@ -6,6 +6,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <title>3D 粒子圣诞树 - 量子终极版</title>
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
@@ -62,6 +63,26 @@
             border-left: none;
             max-width: 90vw;
             box-sizing: border-box;
+        }
+        #title-text {
+            position: absolute;
+            bottom: 10%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Great Vibes', cursive;
+            font-size: clamp(3rem, 8vw, 5rem);
+            color: #fff;
+            text-shadow: 0 0 10px #ffcc00, 0 0 20px #ffcc00, 0 0 30px #ff0000;
+            pointer-events: none;
+            z-index: 5;
+            opacity: 0;
+            white-space: nowrap;
+            letter-spacing: 2px;
+        }
+        @media (max-width: 768px) {
+            #title-text {
+                bottom: 15%;
+            }
         }
         #loading {
             position: absolute;
@@ -180,6 +201,8 @@
     </div>
 
     <div id="tap-hint">👆 点击屏幕切换风格</div>
+    
+    <div id="title-text">Merry Christmas</div>
 
     <div id="canvas-container"></div>
     <!-- 静音视频以允许自动播放 -->
@@ -288,16 +311,19 @@
             uniform float uTime;
             uniform float uRotation; 
             uniform float uMorph; 
+            uniform float uIntro; // 0.0 = Galaxy, 1.0 = Tree
             uniform vec2 uMouse;
             uniform float uPixelRatio;
 
             attribute vec3 positionA; 
             attribute vec3 positionB; 
             attribute vec3 positionC; 
+            attribute vec3 positionIntro; 
             
             attribute vec3 colorA;
             attribute vec3 colorB;
             attribute vec3 colorC;
+            attribute vec3 colorIntro; 
             
             attribute float size;
             attribute float random;
@@ -309,38 +335,58 @@
             }
 
             void main() {
-                // 1. Morphing
-                vec3 pos;
-                vec3 col;
+                // 1. Morphing (Style Transition)
+                vec3 targetPos;
+                vec3 targetCol;
                 
                 if (uMorph < 1.0) {
                     float t = smoothstep(0.0, 1.0, uMorph);
-                    pos = mix(positionA, positionB, t);
-                    col = mix(colorA, colorB, t);
+                    targetPos = mix(positionA, positionB, t);
+                    targetCol = mix(colorA, colorB, t);
                 } else {
                     float t = smoothstep(1.0, 2.0, uMorph);
-                    pos = mix(positionB, positionC, t);
-                    col = mix(colorB, colorC, t);
+                    targetPos = mix(positionB, positionC, t);
+                    targetCol = mix(colorB, colorC, t);
                 }
 
-                // 2. Global Spin (Accumulated)
+                // 2. Intro Transition (Galaxy -> Tree)
+                vec3 pos;
+                vec3 col;
+                
+                float introT = smoothstep(0.0, 1.0, uIntro);
+                
+                if (uIntro < 1.0) {
+                    vec3 mixedPos = mix(positionIntro, targetPos, introT);
+                    float twist = (1.0 - introT) * 10.0 * (1.0 + random);
+                    float dist = length(mixedPos.xz);
+                    float angle = twist * (1.0 - dist/50.0);
+                    mixedPos.xz *= rotate2d(angle);
+                    pos = mixedPos;
+                    col = mix(colorIntro, targetCol, introT);
+                } else {
+                    pos = targetPos;
+                    col = targetCol;
+                }
+
+                // 3. Global Spin (Accumulated)
                 pos.xz *= rotate2d(uRotation);
 
-                // 3. AUTO SWAY (Subtle physics)
+                // 4. AUTO SWAY (Subtle physics)
+                // Only sway when fully formed
                 float heightFactor = clamp((pos.y + 15.0) / 40.0, 0.0, 1.0);
-                float interactionStrength = 0.5; 
+                float interactionStrength = 0.5 * uIntro; // No sway during intro
                 float windSway = sin(uTime * 1.5) * pow(heightFactor, 2.0); 
                 
                 pos.x += windSway * interactionStrength;
                 pos.z += cos(uTime * 1.2) * pow(heightFactor, 2.0) * interactionStrength * 0.5;
                 
-                // 4. Breathing
+                // 5. Breathing
                 float breathe = sin(uTime * 2.0 + random * 10.0) * 0.5 + 0.5;
                 
                 vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
                 gl_Position = projectionMatrix * mvPosition;
 
-                // 5. Size
+                // 6. Size
                 float calculatedSize = size * (1.0 + breathe * 0.5) * uPixelRatio * (20.0 / -mvPosition.z);
                 gl_PointSize = clamp(calculatedSize, 2.0, 35.0);
 
@@ -364,7 +410,7 @@
         const generateParticles = () => {
             const count = config.particleCount;
             const geom = new THREE.BufferGeometry();
-            const posA=[], posB=[], posC=[], colA=[], colB=[], colC=[], sizes=[], randoms=[];
+            const posA=[], posB=[], posC=[], posIntro=[], colA=[], colB=[], colC=[], colIntro=[], sizes=[], randoms=[];
             const colorHelper = new THREE.Color();
 
             for (let i = 0; i < count; i++) {
@@ -372,17 +418,46 @@
                 const r2 = Math.random();
                 const r3 = Math.random();
 
-                // --- Style A: Gold Glow (Surface Only, Dense) ---
+                // --- Intro: Sparse Galaxy ---
+                // Random sphere/disc distribution
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+                const radiusIntro = 30 + Math.random() * 40; // Wide spread
+                posIntro.push(
+                    radiusIntro * Math.sin(phi) * Math.cos(theta),
+                    radiusIntro * Math.sin(phi) * Math.sin(theta),
+                    radiusIntro * Math.cos(phi)
+                );
+                // Silver-Blue faint stars
+                colorHelper.setHSL(0.6, 0.8, 0.8); // Blueish Silver
+                colIntro.push(colorHelper.r, colorHelper.g, colorHelper.b);
+
+                // --- Style A: Cosmic Continuous Spiral (Refined) ---
                 const yA = r * config.treeHeight;
-                // Linear cone shape
-                const radiusA = config.baseRadius * (1.0 - yA/config.treeHeight);
-                // FULL 360 RANDOM to remove gaps/ribbons
-                const angleA = r2 * Math.PI * 2; 
+                const progressA = yA / config.treeHeight;
+                const radiusA = config.baseRadius * (1.0 - progressA);
                 
-                posA.push(Math.cos(angleA)*radiusA, yA - config.treeHeight/2 + 5, Math.sin(angleA)*radiusA);
-                // Warm Gold Colors
-                if (Math.random() > 0.92) colorHelper.setHex(0xFF2222); // Red accent
-                else colorHelper.setHSL(0.1 + Math.random()*0.08, 1.0, 0.5 + Math.random()*0.4); // Varying Gold
+                // Use a continuous spiral based on index to fill gaps
+                // More loops for denser look
+                const loops = 12.0; 
+                // Combine height progress with index for continuous thread
+                const angleA = (progressA * Math.PI * 2 * loops) + (i * 0.1); 
+                
+                // Add volumetric noise to make it less like a single wire
+                const noiseRadius = (r2 - 0.5) * 4.0 * (1.0 - progressA); // More spread at bottom
+                const noiseAngle = r3 * Math.PI * 2;
+                
+                posA.push(
+                    Math.cos(angleA) * radiusA + Math.cos(noiseAngle) * noiseRadius, 
+                    yA - config.treeHeight/2 + 5, 
+                    Math.sin(angleA) * radiusA + Math.sin(noiseAngle) * noiseRadius
+                );
+                
+                // Neon Tech / Cosmic Colors
+                if (Math.random() > 0.7) colorHelper.setHex(0xFFD700); // Gold
+                else if (Math.random() > 0.5) colorHelper.setHex(0x00FFFF); // Cyan
+                else colorHelper.setHex(0xFF00FF); // Purple
+                
                 colA.push(colorHelper.r, colorHelper.g, colorHelper.b);
 
 
@@ -432,13 +507,17 @@
                 randoms.push(Math.random());
             }
 
-            geom.setAttribute('position', new THREE.Float32BufferAttribute(posA, 3));
+            geom.setAttribute('position', new THREE.Float32BufferAttribute(posIntro, 3)); // Start at Intro
             geom.setAttribute('positionA', new THREE.Float32BufferAttribute(posA, 3));
             geom.setAttribute('positionB', new THREE.Float32BufferAttribute(posB, 3));
             geom.setAttribute('positionC', new THREE.Float32BufferAttribute(posC, 3));
+            geom.setAttribute('positionIntro', new THREE.Float32BufferAttribute(posIntro, 3));
+            
             geom.setAttribute('colorA', new THREE.Float32BufferAttribute(colA, 3));
             geom.setAttribute('colorB', new THREE.Float32BufferAttribute(colB, 3));
             geom.setAttribute('colorC', new THREE.Float32BufferAttribute(colC, 3));
+            geom.setAttribute('colorIntro', new THREE.Float32BufferAttribute(colIntro, 3));
+            
             geom.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
             geom.setAttribute('random', new THREE.Float32BufferAttribute(randoms, 1));
             return geom;
@@ -449,6 +528,7 @@
                 uTime: { value: 0 },
                 uRotation: { value: 0 }, 
                 uMorph: { value: 0 },
+                uIntro: { value: 0 },
                 uMouse: { value: new THREE.Vector2(0, 0) },
                 uPixelRatio: { value: Math.min(window.devicePixelRatio, 2) }
             },
@@ -462,13 +542,51 @@
         const particles = new THREE.Points(generateParticles(), particleMaterial);
         scene.add(particles);
 
-        // Star
-        const star = new THREE.Mesh(new THREE.OctahedronGeometry(1.5, 0), new THREE.MeshBasicMaterial({ color: 0xFFFFFF }));
-        star.position.set(0, config.treeHeight/2 + 5, 0);
+        // Star (The Golden Core)
+        const starGeo = new THREE.OctahedronGeometry(0.5, 0); // Start small
+        const starMat = new THREE.MeshBasicMaterial({ color: 0xFFD700 }); // Gold
+        const star = new THREE.Mesh(starGeo, starMat);
+        star.position.set(0, 0, 0); // Start at center
         scene.add(star);
-        const starLight = new THREE.PointLight(0xffffff, 1, 20);
+        
+        const starLight = new THREE.PointLight(0xFFD700, 2, 50); // Warm Gold Light
         starLight.position.copy(star.position);
         scene.add(starLight);
+
+        const titleText = document.getElementById('title-text');
+
+        // INTRO SEQUENCE
+        const introTimeline = gsap.timeline({ delay: 0.5 });
+        
+        // 1. Core Light Emerges
+        introTimeline.fromTo(star.scale, { x:0, y:0, z:0 }, { x:2, y:2, z:2, duration: 2, ease: "elastic.out(1, 0.3)" });
+        introTimeline.to(starLight, { intensity: 3, distance: 60, duration: 2 }, "<");
+
+        // 2. Galaxy Condenses to Tree
+        introTimeline.to(particleMaterial.uniforms.uIntro, {
+            value: 1,
+            duration: 6,
+            ease: "power2.inOut"
+        }, "-=1.0");
+
+        // 3. Star moves to top
+        introTimeline.to(star.position, {
+            y: config.treeHeight/2 + 5,
+            duration: 5,
+            ease: "power2.inOut"
+        }, "-=6");
+        
+        // 4. Text Fades In
+        introTimeline.to(titleText, {
+            opacity: 1,
+            duration: 3,
+            ease: "power2.out"
+        }, "-=2");
+        
+        // 5. Star becomes final style (White/Bright)
+        introTimeline.to(starMat.color, { r:1, g:1, b:1, duration: 2 }, "-=2");
+        introTimeline.to(starLight.color, { r:1, g:1, b:1, duration: 2 }, "-=2");
+
 
         /**
          * MEDIAPIPE LOGIC
@@ -510,7 +628,7 @@
                     visionRunning = true;
                     loadingEl.style.opacity = 0;
                     camStatus.classList.add('active'); 
-                    controlModeEl.innerText = "手势识别中)";
+                    controlModeEl.innerText = "手势识别中";
                     instructionEl.innerHTML = "👆 食指偏移：陀螺旋转 | 👌 捏合：缩放";
                     predictWebcam();
                 });
@@ -656,6 +774,8 @@
             particleMaterial.uniforms.uRotation.value = state.accumulatedRotation;
             particleMaterial.uniforms.uMouse.value.copy(state.mouse);
 
+            // Update Star Light position
+            starLight.position.copy(star.position);
             star.rotation.y = dt;
             
             if(!state.hasHand && Math.abs(state.mouse.x) < 0.1) {
